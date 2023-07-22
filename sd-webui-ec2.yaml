@@ -1,0 +1,232 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: A CloudFormation template to deploy the Stable Diffusion Web UI
+
+Parameters:
+  CidrBlock:
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+    Default: 0.0.0.0/0
+    Description: "CIDR block allowed to access the instance (example: 10.0.0.0/16, 83.179.207.170/32)"
+    Type: String
+  Ec2InstanceType:
+    Description: EC2 instance type
+    Type: String
+    Default: g4dn.xlarge
+    AllowedValues:
+      - g4dn.xlarge
+      - g4dn.2xlarge
+      - g4dn.4xlarge
+      - g5.xlarge
+      - g5.2xlarge
+      - g5.4xlarge
+  Ec2KeyPair: 
+    Description: EC2 key pair for SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+
+Mappings:
+  AMIRegionMap:  # Deep Learning AMI GPU PyTorch 1.13.1 (Ubuntu 20.04) 20230530
+    ap-northeast-1:
+      ami: ami-0ccc8cde8079fbd80
+    ap-northeast-2:
+      ami: ami-00122226b77d62386
+    ap-northeast-3:
+      ami: ami-0b5e04c3248a2bc7d
+    ap-south-1:
+      ami: ami-0cebcf5b9d60dc50f
+    ap-southeast-1:
+      ami: ami-07038c7683047a90a
+    ap-southeast-2:
+      ami: ami-0e60dbcf8a762bd42
+    ca-central-1:
+      ami: ami-0bb8c0d44f2294c3f
+    eu-central-1:
+      ami: ami-0c7d7e0e142f2d910
+    eu-north-1:
+      ami: ami-04475f6596ac5d1f1
+    eu-west-1:
+      ami: ami-01fdee7e51dee90e8
+    eu-west-2:
+      ami: ami-067ff71b3acc16362
+    eu-west-3:
+      ami: ami-076a0183aec528137
+    sa-east-1:
+      ami: ami-0b7bd63e402b4a99f
+    us-east-1:
+      ami: ami-0705983c654abda59
+    us-east-2:
+      ami: ami-0c7e25230b4705f1b
+    us-west-1:
+      ami: ami-0bb9ce46219e4fa5a
+    us-west-2:
+      ami: ami-078e2151eadb5c30c
+
+Resources:
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for StableDiffusion WebUI EC2 instance
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref CidrBlock
+        - IpProtocol: tcp
+          FromPort: 7860
+          ToPort: 7861
+          CidrIp: !Ref CidrBlock
+      Tags:
+        - Key: Name
+          Value : sd-webui
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref Ec2InstanceType
+      ImageId: !FindInMap
+        - AMIRegionMap
+        - !Ref 'AWS::Region'
+        - ami
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 150
+            VolumeType: gp3
+      Tags:
+        - Key: Name
+          Value : sd-webui
+      KeyName: !Ref Ec2KeyPair
+      SecurityGroups:
+        - Ref: SecurityGroup
+      UserData:
+        'Fn::Base64': |
+            #!/bin/bash
+            set -x
+            sudo apt-get update
+            sudo apt-get upgrade -y
+            sudo apt install wget git python3 python3-venv build-essential net-tools -y
+            
+            # set swap space from instance storage
+            SWAP_DEV=$(lsblk -o PATH,MODEL | grep 'Instance Storage' | awk '{print $1}')
+            mkswap ${SWAP_DEV}
+            swapon ${SWAP_DEV}
+            echo "${SWAP_DEV}       none    swap    sw  0       0" >> /etc/fstab
+            swapon -s
+            sysctl -w vm.swappiness=10
+            echo 'vm.swappiness = 10' >> /etc/sysctl.conf
+           
+            # install git-lfs
+            curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+            sudo apt-get install git-lfs
+            sudo -u ubuntu git lfs install --skip-smudge
+          
+            # install pyenv
+            sudo -u ubuntu git clone https://github.com/pyenv/pyenv.git /home/ubuntu/.pyenv
+            sudo chown -R ubuntu:ubuntu /home/ubuntu/.pyenv
+            echo -e 'if shopt -q login_shell; then' \
+                  '\n  export PYENV_ROOT="$HOME/.pyenv"' \
+                  '\n  export PATH="$PYENV_ROOT/bin:$PATH"' \
+                  '\n eval "$(pyenv init --path)"' \
+                  '\nfi' >> /home/ubuntu/.bashrc
+            echo -e 'if [ -z "$BASH_VERSION" ]; then'\
+                  '\n  export PYENV_ROOT="$HOME/.pyenv"'\
+                  '\n  export PATH="$PYENV_ROOT/bin:$PATH"'\
+                  '\n  eval "$(pyenv init --path)"'\
+                  '\nfi' >> /home/ubuntu/.profile
+            echo 'if command -v pyenv >/dev/null; then eval "$(pyenv init -)"; fi' >> /home/ubuntu/.bashrc
+          
+            # install dependency for installing python 3.10.6 by pyenv
+            sudo apt-get install -y make build-essential libssl-dev zlib1g-dev \
+                libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm libncursesw5-dev \
+                xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev -y
+            
+            # install python 3.10.6 in pyenv
+            echo 'export PYENV_ROOT="$HOME/.pyenv" ; PATH="$PYENV_ROOT/bin:$PATH" ; eval "$(pyenv init --path)" ; pyenv install 3.10.6 ; pyenv global 3.10.6' | sudo -u ubuntu -i bash
+            # pyenv install 3.10.6
+            # pyenv global 3.10.6
+          
+            # clone sd webui
+            cd /home/ubuntu
+            git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui.git
+            echo 'export COMMANDLINE_ARGS="--xformers --enable-insecure-extension-access --theme dark --disable-nan-check"' >> ./stable-diffusion-webui/webui-user.sh
+
+            # install extensions
+            cd /home/ubuntu/stable-diffusion-webui/extensions
+            git clone https://github.com/butaixianran/Stable-Diffusion-Webui-Civitai-Helper
+            git clone https://github.com/kohya-ss/sd-webui-additional-networks
+            git clone https://github.com/zanllp/sd-webui-infinite-image-browsing
+            git clone https://github.com/s0md3v/sd-webui-roop
+            git clone https://github.com/Mikubill/sd-webui-controlnet
+            git clone https://huggingface.co/lllyasviel/ControlNet-v1-1
+            mv ControlNet-v1-1/*.pth ./sd-webui-controlnet/models/
+            rm -rf ControlNet-v1-1
+            git clone https://github.com/fkunn1326/openpose-editor
+
+            # symlink lora folder for backward compatibility (just in case)
+            cd /home/ubuntu
+            cd stable-diffusion-webui/models
+            ln -sf ../extensions/sd-webui-additional-networks/models/lora ./Lora
+
+            # download sd models
+            cd /home/ubuntu/stable-diffusion-webui/models/Stable-diffusion
+            wget --content-disposition 'https://civitai.com/api/download/models/11745?type=VAE&format=Other'
+
+            # download Lora
+            cd /home/ubuntu/stable-diffusion-webui/models/Lora
+            wget --content-disposition 'https://civitai.com/api/download/models/34562?type=Model&format=SafeTensor&size=full&fp=fp16'
+            wget --content-disposition 'https://civitai.com/api/download/models/31284?type=Model&format=SafeTensor&size=full&fp=fp16'
+            wget --content-disposition 'https://civitai.com/api/download/models/52974?type=Model&format=SafeTensor'
+
+            # install textual inversion
+            cd /home/ubuntu/stable-diffusion-webui/embeddings
+            wget https://huggingface.co/datasets/gsdf/EasyNegative/resolve/main/EasyNegative.safetensors
+            #wget --content-disposition 'https://civitai.com/api/download/models/9208?type=Model&format=SafeTensor&size=full&fp=fp16'
+            wget https://huggingface.co/datasets/Nerfgun3/bad_prompt/resolve/main/bad_prompt.pt
+            wget https://huggingface.co/datasets/Nerfgun3/bad_prompt/resolve/main/bad_prompt_version2.pt
+            wget --content-disposition 'https://civitai.com/api/download/models/60938?type=Negative&format=Other'
+            wget https://huggingface.co/yesyeahvh/bad-hands-5/resolve/main/bad-hands-5.pt
+
+            # create service to start at boot
+            cat << EOF > /etc/systemd/system/sd-webui.service
+            [Unit]
+            Description=Stable Diffusion WebUI
+            After=network.target
+            
+            [Service]
+            ExecStart=/home/ubuntu/start-sd-webui.sh
+            User=ubuntu
+            Group=ubuntu
+            Restart=on-failure
+            RestartSec=30s
+            
+            [Install]
+            WantedBy=default.target
+            EOF
+            chmod 644 /etc/systemd/system/sd-webui.service
+            
+            cat << EOF > /home/ubuntu/start-sd-webui.sh
+            #!/bin/sh
+            cd /home/ubuntu/stable-diffusion-webui
+            ./webui.sh --listen
+            EOF
+            chmod 755 /home/ubuntu/start-sd-webui.sh
+
+            chown -R ubuntu:ubuntu /home/ubuntu/
+            systemctl enable sd-webui.service
+            systemctl start sd-webui.service
+
+
+  EIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Tags:
+        - Key: Name
+          Value : sd-webui
+
+  EIPAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt EIP.AllocationId
+      InstanceId: !Ref EC2Instance
+
+Outputs:
+  WebUiURL:
+    Description: URL for Stable Diffusion Web UI (available in 30 mins)
+    Value: !Sub "http://${EIP}:7860"
