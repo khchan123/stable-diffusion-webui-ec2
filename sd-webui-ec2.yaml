@@ -92,9 +92,31 @@ Resources:
       Timeout: 1800
       Count: 1
 
+  SSMIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref SSMIAMRole
+
   EC2Instance:
     Type: AWS::EC2::Instance
     Properties:
+      IamInstanceProfile: !Ref EC2InstanceProfile
       InstanceType: !Ref Ec2InstanceType
       ImageId: !FindInMap
         - AMIRegionMap

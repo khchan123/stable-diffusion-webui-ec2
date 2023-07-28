@@ -52,13 +52,23 @@ Follow this [link](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-ke
    
    > Command to view WebUI log: `journalctl -f -u sd-webui`
 
-### Commonly used commands in EC2
+### Common commands in EC2
 
-You can connect to the EC2 instance using the ssh key pair.
+> You can connect to the EC2 instance using one of the following methods.
+> 
+> - ssh key pair <pre>ssh -i *<key-pair.pem>* ubuntu@*\<ip-address>*</pre>
+>
+> - SSM Session Manager (from the `Connect` button in AWS console), then switch to `ubuntu`` user
+>   
+>   ```bash
+>   sudo su ubuntu
+>   ```
+
+Common commands:
 
 - View installation log: `tail -f /var/log/cloud-init-output.log`
 
-- View WebUI log: `journalctl -f -u sd-webui`
+- View WebUI log: `journalctl -afu sd-webui`
 
 - Start WebUI: `sudo systemctl start sd-webui`
 
