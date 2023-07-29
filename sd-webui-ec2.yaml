@@ -179,8 +179,8 @@ Resources:
           git clone https://github.com/s0md3v/sd-webui-roop
           git clone https://github.com/Mikubill/sd-webui-controlnet
           # selected models only
-          wget --content-disposition --progress=dot:giga 'https://huggingface.co/lllyasviel/ControlNet-v1-1/resolve/main/control_v11p_sd15_canny.pth'
-          wget --content-disposition --progress=dot:giga 'https://huggingface.co/lllyasviel/ControlNet-v1-1/resolve/main/control_v11p_sd15_openpose.pth'
+          wget -P sd-webui-controlnet/models/ --content-disposition --progress=dot:giga 'https://huggingface.co/lllyasviel/ControlNet-v1-1/resolve/main/control_v11p_sd15_canny.pth'
+          wget -P sd-webui-controlnet/models/ --content-disposition --progress=dot:giga 'https://huggingface.co/lllyasviel/ControlNet-v1-1/resolve/main/control_v11p_sd15_openpose.pth'
           git clone https://github.com/fkunn1326/openpose-editor
 
           # symlink lora folder for backward compatibility (just in case)
