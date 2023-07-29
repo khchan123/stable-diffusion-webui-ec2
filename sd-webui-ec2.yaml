@@ -142,7 +142,7 @@ Resources:
           echo 'DPkg::Lock::Timeout=300;' | tee /etc/apt/apt.conf.d/80-dpkg-lock
           sudo apt-get update
           sudo apt-get upgrade -y
-          sudo apt install wget git python3 python3-venv build-essential net-tools -y
+          sudo apt install xterm wget git python3 python3-venv build-essential net-tools libtcmalloc-minimal4 -y
 
           # set swap space from instance storage
           SWAP_DEV=$(lsblk -o PATH,MODEL | grep 'Instance Storage' | awk '{print $1}')
