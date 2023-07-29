@@ -4,16 +4,16 @@
 
 A quickstart automation to deploy AUTOMATIC1111 [stable-diffusion-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui) with AWS EC2.
 
-The CloudFormation template deploys an EC2 instance in your AWS environment. The [user data](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html) will install and configure Stable Diffusion WebUI automatically at launch. The one-click deployment takes around 20 minutes.
+The CloudFormation template deploys an EC2 instance in your AWS environment. The [user data](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html) will install and configure Stable Diffusion WebUI automatically at launch. The one-click deployment takes around 20 minutes to complete.
 
 ## Overview
 
 - A GPU-based EC2 instance
   
-  - Running on AMI: `Deep Learning AMI GPU PyTorch 1.13.1 (Ubuntu 20.04) 20230530`
-  - Associated with static public IP address (Elastic IP)
-  - Instance store configured as swap volumes
-  - Security group allows only whitelist IP range (CIDR) to access
+  - AMI: `Deep Learning AMI GPU PyTorch 1.13.1 (Ubuntu 20.04) 20230530`
+  - static public IP address (Elastic IP)
+  - swap volumes from instance store
+  - security group allows only whitelist IP CIDR to access
 
 - Auto install stable-diffusion-webui and run as a systemctl service
 
@@ -23,9 +23,10 @@ The CloudFormation template deploys an EC2 instance in your AWS environment. The
 
 ### Step 1: Request AWS service quota increase
 
-AWS accounts have quotas in each region that limit how many vCPUs of a particular instance type you can run at once. The quota for GPU instances are all 0 for a new AWS account. Click this [link](https://aws.amazon.com/contact-us/ec2-request) or this [link](https://console.aws.amazon.com/servicequotas/home/services/ec2/quotas/L-DB2E81BA) to request for service quota increase. Make sure you select the correct AWS region and request for <b>G instances</b>. The limit should be at least <b>4</b> (8 or 16 is also acceptable).
+Open this [link](https://console.aws.amazon.com/servicequotas/home/services/ec2/quotas/L-DB2E81BA) to request for service quota increase for G instances. Make sure you are requesting the correct AWS region! The limit has to be at least 4 for running one xlarge instance. You may request for a higher quota such as **8** or **16**.
 
-> It could take 3-5 business days for AWS to grant the quota increase.
+> AWS accounts have quotas in each region that limit how many vCPUs of a particular instance type you can run at once. The quota for GPU instances are all 0 for a new AWS account.
+> It may take a couple days for AWS to approve the quota increase.
 
 ### Step 2: Create EC2 key pair
 
@@ -39,9 +40,19 @@ Follow this [link](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-ke
 
 3. For stack details,
    
-   - Stack Name: `sd-webui` <i>(or anything you like)</i>
+   - Stack Name: `sd-webui` <i>(any name you like)</i>
    - Ec2KeyPair: Choose a EC2 key pair
-   - Ec2InstanceType: Prefer to choose `g5.xlarge` but it is only supported in limited AWS regions. Choose `g4dn.xlarge` otherwise.
+   - Ec2InstanceType: `g5.xlarge` or `g4dn.xlarge` should be good.
+
+     > - `g5.xlarge` - $0.526 per hour in us-east-1
+     >  - 4 vCPU + 16 GB RAM + NVIDIA A10G GPU / 16 GB VRAM
+     >  - available in limited regions, such as us-east-1	(N. Virginia), us-east-2 (Ohio), us-west-2 (Oregon), eu-west-1 (Ireland), eu-west-2 (London) and ap-southeast-1 (Singapore)
+     >  - it takes around 0.5 minutes to generate an image of 512x768px with 28 steps + highres fix 2x upscaling with 20 steps
+     > - `g4dn.xlarge` - $1.006 per hour in us-east-1
+     >   - 4 vCPU + 16 GB RAM + NVIDIA T4 GPU / 16 GB VRAM
+     >  - available in many AWS regions
+     >  - it takes around 1.5 minutes to generate an image of 512x768px with 28 steps + highres fix 2x upscaling with 20 steps
+
    - CidrBlock: Input <b>your public address</b> so only you can access the Web UI and ssh. Choose `0.0.0.0/0` if you don't mind everyone can access.
 
 4. The stack status will become `CREATE_COMPLETE` around 10 minutes.
@@ -58,7 +69,7 @@ Follow this [link](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-ke
 > 
 > - ssh key pair <pre>ssh -i *<key-pair.pem>* ubuntu@*\<ip-address>*</pre>
 >
-> - SSM Session Manager (from the `Connect` button in AWS console), then switch to `ubuntu`` user
+> - SSM Session Manager (from the `Connect` button in AWS console), then switch to `ubuntu` user
 >   
 >   ```bash
 >   sudo su ubuntu
