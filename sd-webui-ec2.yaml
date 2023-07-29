@@ -169,7 +169,7 @@ Resources:
           cd /home/ubuntu
           git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui.git
           echo 'python_cmd="python3.10"' >> stable-diffusion-webui/webui-user.sh
-          echo 'export COMMANDLINE_ARGS="--xformers --enable-insecure-extension-access --theme dark --disable-nan-check"' >> stable-diffusion-webui/webui-user.sh
+          echo 'export COMMANDLINE_ARGS="--xformers --enable-insecure-extension-access --theme dark --no-half-vae"' >> stable-diffusion-webui/webui-user.sh
 
           # install extensions
           cd /home/ubuntu/stable-diffusion-webui/extensions
@@ -217,7 +217,7 @@ Resources:
           ExecStart=/home/ubuntu/start-sd-webui.sh
           User=ubuntu
           Group=ubuntu
-          Restart=on-failure
+          Restart=Always
           RestartSec=30s
 
           [Install]
